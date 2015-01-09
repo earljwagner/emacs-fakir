@@ -303,12 +303,14 @@ In normal circumstances, we return what the BODY returned."
 
 ;; A structure to represent a mock file
 
+(defconst *fakir-file-default-mtime* "Mon, Feb 27 2012 22:10:19 GMT")
+
 (defstruct fakir-file
   filename
   directory
   (content "")
   ;; obviously there should be all the state of the file here
-  (mtime "Mon, Feb 27 2012 22:10:19 GMT")
+  (mtime *fakir-file-default-mtime*)
   (directory-p nil))
 
 (defun fakir-file (&rest args)
@@ -325,6 +327,19 @@ was written.
 
 :DIRECTORY-P specifies whether this file is a directory or a file."
   (apply 'make-fakir-file args))
+
+(defun fakir-file-make (path &optional content mtime)
+  (let* ((dir-p (not (equal path (directory-file-name path))))
+         (actual-path (directory-file-name path))
+         (directory (directory-file-name (file-name-directory actual-path)))
+         (nondir (file-name-nondirectory actual-path))
+         (filename (unless (eq nondir "") nondir)))
+    (fakir-file
+     :directory directory
+     :filename filename
+     :directory-p dir-p
+     :content (or content "")
+     :mtime (or mtime *fakir-file-default-mtime*))))
 
 (defun fakir--file-check (file)
   "Implements the type check for FILE is a `fakir--file'."

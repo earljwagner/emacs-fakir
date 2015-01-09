@@ -120,52 +120,54 @@ work.  That seems better than trying to use a binary."
         (delete-process :fakeproc)))
     "the process finished"))))))
 
+(ert-deftest fakir-file-make ()
+  "Test we can make files."
+  (should (equal (fakir-file-make "/home/dir/somefile")
+                 (fakir-file
+                  :directory "/home/dir" :filename "somefile"
+                  :directory-p nil :content "")))
+  (should (equal (fakir-file-make "/home/dir/somefile" "some"
+                                  "Sat, Jan 10 2014 22:10:19 GMT")
+                 (fakir-file
+                  :directory "/home/dir" :filename "somefile"
+                  :directory-p nil :content "some"
+                  :mtime "Sat, Jan 10 2014 22:10:19 GMT")))
+  (should (equal (fakir-file-make "/home/dir/somedir/")
+                 (fakir-file
+                  :directory "/home/dir" :filename "somedir"
+                  :directory-p t))))
+
 (ert-deftest fakir--file-fqn ()
   "Test we can make fully qualified names for files."
-  (let ((ef (make-fakir-file
-             :filename "somefile"
-             :directory "/home/dir")))
+  (let ((ef (fakir-file-make "/home/dir/somefile")))
     (should (equal "/home/dir/somefile"
                    (fakir--file-fqn ef)))))
 
 (ert-deftest fakir--file-mod-time ()
   "Test that file mtimes are encoded properly."
-  (let ((ef (make-fakir-file
-             :filename "somefile"
-             :directory "/home/dir"
-             :mtime "Mon, Feb 27 2012 22:10:21 GMT")))
+  (let ((ef (fakir-file-make "/home/dir/somefile" nil
+                             "Mon, Feb 27 2012 22:10:21 GMT")))
     (should (equal (fakir--file-mod-time ef)
                    '(20299 65357)))))
 
 (ert-deftest fakir--file-attribs ()
   "Test that we get back file attributes."
-  (let ((ef (make-fakir-file
-             :filename "somefile"
-             :directory "/home/dir"
-             :mtime "Mon, Feb 27 2012 22:10:21 GMT")))
+  (let ((ef (fakir-file-make "/home/dir/somefile" nil
+                             "Mon, Feb 27 2012 22:10:21 GMT")))
     (should (equal
              (list nil t t t t '(20299 65357))
              (fakir--file-attribs ef))))
-  (let ((ef (make-fakir-file
-             :filename "somedir"
-             :directory "/home/dir"
-             :mtime "Mon, Feb 27 2012 22:10:21 GMT"
-             :directory-p t)))
+  (let ((ef (fakir-file-make "/home/dir/somedir/" nil
+                             "Mon, Feb 27 2012 22:10:21 GMT")))
     (should (equal
              (list t t t t t '(20299 65357))
              (fakir--file-attribs ef)))))
 
 (ert-deftest fakir--file-home ()
   "Test the home root stuff."
-  (let ((ef (make-fakir-file
-             :filename "somefile"
-             :directory "/home/dir"))
-        (ef2 (make-fakir-file
-             :filename "somefile"
-             :directory "/var/dir"))
-        (ef3 (make-fakir-file
-              :filename "somefile"
-              :directory "/home/dir/someddir")))
+  (let ((ef (fakir-file-make "/home/dir/somefile"))
+        (ef2 (fakir-file-make "/var/dir/somefile"))
+        (ef3 (fakir-file-make "/home/dir/someddir/somefile")))
     (should (equal "/home/dir" (fakir--file-home ef)))
     (should (equal "/home/dir" (fakir--file-home ef3)))
     (should (equal nil (fakir--file-home ef2)))))
@@ -211,9 +213,8 @@ work.  That seems better than trying to use a binary."
     "/qwdqdq.5")))
 
 (ert-deftest fakir/find-file ()
-  (let ((f (fakir-file :filename "README"
-                       :directory "/home/fakir"
-                       :content "This is a ReadMe file.")))
+  (let ((f (fakir-file-make "/home/fakir/README"
+                            "This is a ReadMe file.")))
     (let ((buf (fakir--find-file f)))
       (unwind-protect
           (with-current-buffer buf
@@ -225,8 +226,7 @@ work.  That seems better than trying to use a binary."
 (ert-deftest fakir--write-region ()
   "Test writing fake stuff."
   (let ((fl
-         (fakir-file :filename "nic" :directory "/tmp/"
-                     :content "blah")))
+         (fakir-file-make "/tmp/nic" "blah")))
     ;; Overwrite the faked content
     (should
      (equal
@@ -251,11 +251,8 @@ work.  That seems better than trying to use a binary."
 (ert-deftest fakir-mock-file ()
   "Test the mock file macro."
   (let ((fakir--home-root "/home/test"))
-    (fakir-mock-file (fakir-file
-                      :filename "somefile"
-                      :directory "/home/test"
-                      :content "This is a file."
-                      :mtime "Mon, Feb 27 2012 22:10:21 GMT")
+    (fakir-mock-file (fakir-file-make "/home/test/somefile" "This is a file."
+                                      "Mon, Feb 27 2012 22:10:21 GMT")
       (let ((buf (find-file "/home/test/somefile")))
         (unwind-protect
              (with-current-buffer buf
@@ -275,20 +272,14 @@ work.  That seems better than trying to use a binary."
 
 (ert-deftest fakir-fake-file/creates-parent-directories ()
   (fakir-fake-file
-      (fakir-file
-       :filename "somefile"
-       :directory "/home/fakir-test"
-       :content "somecontent")
+      (fakir-file-make "/home/fakir-test/somefile" "somecontent")
     (should (equal t (file-directory-p "/")))
     (should (equal t (file-directory-p "/home")))
     (should (equal t (file-directory-p "/home/fakir-test")))))
 
 (ert-deftest fakir-fake-file/insert-file-contents ()
   (fakir-fake-file
-   (fakir-file
-    :filename "blah"
-    :directory "/tmp"
-    :content "blah!")
+   (fakir-file-make "/tmp/blah" "blah!")
    (should
     (equal
      (with-temp-buffer
@@ -301,10 +292,7 @@ work.  That seems better than trying to use a binary."
 (ert-deftest fakir-fake-file/expand-file-name ()
   (let ((fakir--home-root "/home/fakir-test"))
     (fakir-fake-file
-     (fakir-file
-      :filename "blah"
-      :directory "/home/fakir-test"
-      :content "blah!")
+     (fakir-file-make "/home/fakir-test/blah" "blah!")
      (let ((real-home-dir
             (file-name-as-directory (getenv "HOME"))))
        (should
@@ -321,22 +309,10 @@ work.  That seems better than trying to use a binary."
   (let ((fakir--home-root "/home/fakir-test"))
     (fakir-fake-file
      (list
-      (fakir-file
-       :filename "blah"
-       :directory "/home/fakir-test"
-       :content "blah!")
-      (fakir-file
-       :filename "blah2"
-       :directory "/home/fakir-test"
-       :content "blah2!")
-      (fakir-file
-       :filename "blah3"
-       :directory "/home/fakir-test"
-       :content "NO WAY!")
-      (fakir-file
-       :filename "blah3"
-       :directory "/tmp"
-       :content "totally testing!"))
+      (fakir-file-make "/home/fakir-test/blah" "blah!")
+      (fakir-file-make "/home/fakir-test/blah2" "blah2!")
+      (fakir-file-make "/home/fakir-test/blah3" "NO WAY!")
+      (fakir-file-make "/tmp/blah3" "totally testing!"))
      (let ((real-home-dir
             (file-name-as-directory (getenv "HOME"))))
        (should
@@ -356,53 +332,33 @@ work.  That seems better than trying to use a binary."
 (ert-deftest fakir-fake-file/file-regular-p ()
   (fakir-fake-file
       (list
-       (fakir-file
-        :filename "testfile"
-        :directory "/home/fakir-test"
-        :content "file content")
-       (fakir-file
-        :filename "subdir"
-        :directory "/home/fakir-test"
-        :directory-p t))
+       (fakir-file-make "/home/fakir-test/testfile" "file content")
+       (fakir-file-make "/home/fakir-test/subdir/"))
     (should (equal t (file-directory-p "/home/fakir-test/subdir")))
     (should (equal nil (file-directory-p "/home/fakir-test/testfile")))))
 
 (ert-deftest fakir-fake-file/file-directory-p ()
   (fakir-fake-file
       (list
-       (fakir-file
-        :filename "testfile"
-        :directory "/home/fakir-test"
-        :content "file content")
-       (fakir-file
-        :filename "subdir"
-        :directory "/home/fakir-test"
-        :directory-p t))
+       (fakir-file-make "/home/fakir-test/testfile" "file content")
+       (fakir-file-make "/home/fakir-test/subdir/"))
     (should (equal t (file-regular-p "/home/fakir-test/testfile")))
     (should (equal nil (file-regular-p "/home/fakir-test/subdir")))))
-
 
 (ert-deftest fakir-fake-file/directory-files ()
   (fakir-fake-file
       (list
-       (fakir-file
-        :filename "somefile"
-        :directory "/home/fakir-test"
-        :content "blah!")
-       (fakir-file
-        :filename "otherfile"
-        :directory "/home/fakir-test/subdir"
-        :content "deep")
-       (fakir-file
-        :filename "otherdir"
-        :directory "/home/fakir-test"
-        :directory-p ""))
+       (fakir-file-make "/home/fakir-test/somefile" "blah!")
+       (fakir-file-make "/home/fakir-test/subdir/otherfile" "deep")
+       (fakir-file-make "/home/fakir-test/otherdir/"))
     (should (equal
              (directory-files "/home/fakir-test")
              '("." ".." "otherdir" "somefile" "subdir")))
     (should (equal
              (directory-files "/home/fakir-test" t)
-             '("/home/fakir-test/." "/home/fakir-test/.." "/home/fakir-test/otherdir" "/home/fakir-test/somefile" "/home/fakir-test/subdir")))
+             '("/home/fakir-test/." "/home/fakir-test/.."
+               "/home/fakir-test/otherdir" "/home/fakir-test/somefile"
+               "/home/fakir-test/subdir")))
     (should (equal
              (directory-files "/home/fakir-test" t "otherdir")
              '("/home/fakir-test/otherdir")))))
@@ -410,18 +366,9 @@ work.  That seems better than trying to use a binary."
 (ert-deftest fakir-fake-file/directory-files-and-attributes ()
   (fakir-fake-file
       (list
-       (fakir-file
-        :filename "somefile"
-        :directory "/home/fakir-test"
-        :content "blah!")
-       (fakir-file
-        :filename "otherfile"
-        :directory "/home/fakir-test/subdir"
-        :content "deep")
-       (fakir-file
-        :filename "otherdir"
-        :directory "/home/fakir-test"
-        :directory-p ""))
+       (fakir-file-make "/home/fakir-test/somefile" "blah!")
+       (fakir-file-make "/home/fakir-test/subdir/otherfile" "deep")
+       (fakir-file-make "/home/fakir-test/otherdir/"))
     (should (equal
              nil
              (directory-files-and-attributes "/home/fakir-test/somefile")))
@@ -432,23 +379,20 @@ work.  That seems better than trying to use a binary."
              (directory-files-and-attributes "/home/fakir-test")
              '(("." t t t t t (20299 65355))
                (".." t t t t t (20299 65355))
-               ("otherdir" "" t t t t (20299 65355))
+               ("otherdir" t t t t t (20299 65355))
                ("somefile" nil t t t t (20299 65355))
                ("subdir" t t t t t (20299 65355)))))
     (should (equal
              (directory-files-and-attributes "/home/fakir-test" t)
              '(("/home/fakir-test/." t t t t t (20299 65355))
                ("/home/fakir-test/.." t t t t t (20299 65355))
-               ("/home/fakir-test/otherdir" "" t t t t (20299 65355))
+               ("/home/fakir-test/otherdir" t t t t t (20299 65355))
                ("/home/fakir-test/somefile" nil t t t t (20299 65355))
                ("/home/fakir-test/subdir" t t t t t (20299 65355)))))))
 
 (ert-deftest fakir-fake-file/file-accessible-directory-p ()
   (fakir-fake-file
-      (fakir-file
-       :filename "somefile"
-       :directory "/home/fakir-test"
-       :content "blah!")
+      (fakir-file-make "/home/fakir-test/somefile" "blah!")
     (should (equal t (file-accessible-directory-p "/home/fakir-test")))
     (should (equal t (file-accessible-directory-p "/home/fakir-test/")))
     (should (equal nil (file-accessible-directory-p "/home/fakir-test/somefile")))))
